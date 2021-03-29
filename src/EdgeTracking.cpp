@@ -4,26 +4,41 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
+
 #include <deque>
 #include <iostream>
+#include <utility>
+
 using namespace cv;
 
 int main(int argc, char **argv) {
 
   std::string fileName;
-  if (argc > 1)
+  std::string csvName;
+  if (argc > 1) {
     fileName = argv[1];
-  else
+    csvName = argv[2];
+  } else {
     std::cout << "-- Error! No input image" << std::endl;
+    exit(1);
+  }
 
-  ImageProcessing img(fileName);
-  // auto mat = img._img;
-  img.MorphologyOperations();
-  img.GlobalThresholding();
-  auto mat = img.GetBinaryImage();
-  img.ContourDetection();
-  img.ComputeMinimumDiameter();
-  img.DrawMinimumDiameter();
+  // ImageProcessing testin:
+  // ImageProcessing img(fileName);
+  // img.MorphologyOperations();
+  // img.GlobalThresholding();
+  // auto mat = img.GetBinaryImage();
+  // img.ContourDetection();
+  // img.ComputeMinimumDiameter();
+  // img.DrawMinimumDiameter();
+
+  // FileParser Testing
+  FileParser parser(csvName, 3, 1, ',');
+  parser.ReadCsvFile();
+  std::vector<std::pair<float, float>> dataset{std::make_pair(0., 0.),
+                                               std::make_pair(100., 0.1)};
+  parser.WriteOutputFile(dataset);
+
 } // end of main
 
 /*
