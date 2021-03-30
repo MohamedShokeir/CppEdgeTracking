@@ -1,18 +1,23 @@
 #include "ImageProcessing.h"
+#include "Parser.h"
+
 #include <algorithm>
+#include <cassert>
+#include <deque>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
 
-#include <cassert>
-#include <deque>
-#include <iostream>
-#include <vector>
-
 typedef uchar Pixel;
 
-ImageProcessing::ImageProcessing(const std::string &imgName) {
+ImageProcessing::ImageProcessing(const std::string &imgName, const float &force)
+    : _imgName(imgName), _force(force) {
+  _imgName.erase(std::remove(_imgName.begin(), _imgName.end(), '/'),
+                 _imgName.end());
+  _imgName.erase(std::remove(_imgName.begin(), _imgName.end(), '.'),
+                 _imgName.end());
   _img = imread(imgName, COLOR_BGR2GRAY);
   if (_img.empty()) {
     std::cout << "-- Error! Could not read the image: " << imgName << std::endl;
@@ -37,6 +42,15 @@ ImageProcessing::ImageProcessing(const std::string &imgName,
 Mat ImageProcessing::GetImage() { return _img; }
 
 Mat ImageProcessing::GetBinaryImage() { return _binaryImg; }
+
+int ImageProcessing::GetMinimumPixelDistance() {
+  MorphologyOperations();
+  GlobalThresholding();
+  ContourDetection();
+  ComputeMinimumDiameter();
+  DrawMinimumDiameter();
+  return _min_distance;
+}
 
 void ImageProcessing::ShowImage(Mat &src) {
   imshow("Press any key to exit", src);
@@ -112,6 +126,9 @@ void ImageProcessing::ComputeMinimumDiameter() {
 }
 
 void ImageProcessing::DrawMinimumDiameter() {
+  bool save = true;
+  bool show = false;
+
   Mat tmp; // new image to sketch the contour and miminum diameter
 
   std::vector<Point2d>::iterator other =
@@ -120,7 +137,8 @@ void ImageProcessing::DrawMinimumDiameter() {
 
   // draw the minmum diameter
   auto res = std::find_if(
-      _Lpoints.begin(), _Lpoints.end(), [this, &tmp, &other](Point2d &point) {
+      _Lpoints.begin(), _Lpoints.end(),
+      [this, &tmp, &other, show, save](Point2d &point) {
         int local_distance = point.x - (*other).x;
 
         if (local_distance == _min_distance) {
@@ -129,8 +147,14 @@ void ImageProcessing::DrawMinimumDiameter() {
           circle(tmp, *other, 15, Scalar(0, 255, 0), -1); // draw right circle
           line(tmp, point, *other, Scalar(0, 0, 255), 2,
                LINE_8); // draw horizontal line at the minimum diameter
-          imshow("Press any key to exit", tmp);
-          waitKey(0); // Wait for a keystroke in the window
+          if (save) {
+            const std::string out = "ET/" + _imgName + ".png";
+            imwrite(out, tmp); // Save the frame into a file
+          }
+          if (show) {
+            imshow("Press any key to exit", tmp);
+            waitKey(0); // Wait for a keystroke in the window
+          }
           return true;
         }
         other++;

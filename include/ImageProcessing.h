@@ -21,12 +21,13 @@ enum ThresholdType {
 class ImageProcessing {
 public:
   ImageProcessing();
-  ImageProcessing(const std::string &imgName);
+  ImageProcessing(const std::string &imgName, const float &force);
   ImageProcessing(const std::string &imgName, ThresholdType threshType);
 
   // Getters
   Mat GetImage();
   Mat GetBinaryImage();
+  int GetMinimumPixelDistance();
 
   void ShowImage(Mat &src);
   void MorphologyOperations(int operationCode = 2);
@@ -52,7 +53,11 @@ private:
   std::vector<Point2d> _Rpoints;
   std::vector<int> _distances;
 
+  std::string _imgName;
+
   int _min_distance;
+
+  float _force;
 
   ThresholdType _threshType;
 };

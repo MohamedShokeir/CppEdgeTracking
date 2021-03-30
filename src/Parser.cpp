@@ -1,12 +1,15 @@
 #include "Parser.h"
 
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <utility>
+
+#define PI 3.14159265359
 
 ArgumentParser::ArgumentParser(std::string inputFile) : _inputFile(inputFile) {}
 
@@ -44,6 +47,12 @@ FileParser::FileParser(std::string inputFile) : ArgumentParser{inputFile} {
   _outFile = _name + ".res";
 }
 
+float FileParser::GetArea() { return PI * _diameter * _diameter / 4; }
+
+std::vector<std::pair<std::string, float>> FileParser::GetImagesVector() {
+  return _images;
+}
+
 void FileParser::ReadCsvFile() {
 
   std::string line;
@@ -76,12 +85,11 @@ void FileParser::ReadCsvFile() {
     }
     filestream.close(); // Close file
   }
-  for (std::vector<std::pair<std::string, float>>::const_iterator iter =
-           _images.begin();
-       iter != _images.end(); ++iter) {
-    std::cout << "First: " << iter->first << ", Second: " << iter->second
-              << std::endl;
-  }
+  // for (std::vector<std::pair<std::string, float>>::const_iterator iter =
+  //          _images.begin();
+  //      iter != _images.end(); ++iter) {
+  //   std::cout << "First: " << iter->first << ", Second: " << iter->second
+  //             << std::endl;
 }
 
 void FileParser::WriteOutputFile(std::vector<std::pair<float, float>> &output) {

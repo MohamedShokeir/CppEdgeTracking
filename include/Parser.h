@@ -10,14 +10,17 @@ public:
   ArgumentParser() {}
   ArgumentParser(std::string inputFile);
 
+  // Setter:
+  // void SetLocalPath();
+
   void ParseInputFile();
 
 protected:
   std::string _name;
-  float _diameter;
   std::string _cameraDir;
   int _Fcol;
   int _Imgcol;
+  float _diameter;
   char _delimiter;
 
 private:
@@ -27,6 +30,10 @@ private:
 class FileParser : public ArgumentParser {
 public:
   FileParser(std::string inputFile);
+
+  // Getters
+  float GetArea();
+  std::vector<std::pair<std::string, float>> GetImagesVector();
 
   void ReadCsvFile();
   void WriteOutputFile(std::vector<std::pair<float, float>> &output);
