@@ -1,8 +1,11 @@
 #ifndef IMAGEPROCESSING_H
 #define IMAGEPROCESSING_H
 
+#include "Parser.h"
+
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <opencv2/core.hpp>    // Core functionality
 #include <opencv2/highgui.hpp> // Image Processing
 #include <opencv2/imgproc.hpp> // High-level GUI
@@ -20,21 +23,21 @@ enum ThresholdType {
 
 class ImageProcessing {
 public:
-  ImageProcessing();
+  ImageProcessing() {}
   ImageProcessing(const std::string &imgName, const float &force);
-  ImageProcessing(const std::string &imgName, ThresholdType threshType);
 
   // Getters
   Mat GetImage();
   Mat GetBinaryImage();
-  int GetMinimumPixelDistance();
+  int GetMinimumPixelDistance(bool &show, bool &save);
 
   void ShowImage(Mat &src);
   void MorphologyOperations(int operationCode = 2);
   void GlobalThresholding();
   void ContourDetection();
   void ComputeMinimumDiameter();
-  void DrawMinimumDiameter();
+  void ComputeMinimumEdges();
+  void DrawMinimumDiameter(bool &show, bool &save);
 
   // template <typename T> T MatToVector(Mat mat);
   // template <typename T> Mat_<T> VectorToMat(std::vector<std::vector<T>>
@@ -45,12 +48,14 @@ public:
   std::string TypeToStr(int &type);
 
 protected:
-  Mat _img;
+  std::shared_ptr<Mat> _img;
   Mat _binaryImg;
 
 private:
-  std::vector<Point2d> _Lpoints;
-  std::vector<Point2d> _Rpoints;
+  Point _Lmin;
+  Point _Rmin;
+  std::vector<Point> _Lpoints;
+  std::vector<Point> _Rpoints;
   std::vector<int> _distances;
 
   std::string _imgName;
@@ -58,6 +63,8 @@ private:
   int _min_distance;
 
   float _force;
+
+  std::mutex _mtx;
 
   ThresholdType _threshType;
 };

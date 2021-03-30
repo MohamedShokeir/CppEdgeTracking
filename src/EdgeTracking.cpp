@@ -6,67 +6,46 @@
 #include "opencv2/imgproc.hpp"
 
 #include <filesystem>
+#include <future>
 #include <iostream>
+#include <memory>
+#include <thread>
 #include <utility>
 
-namespace fs = std::__fs::filesystem;
+// namespace fs = std::filesystem;
 
 using namespace cv;
-
-namespace fs = std::__fs::filesystem;
 
 int main(int argc, char **argv) {
 
   // Program input file:
   std::string inputFile;
-  // std::string fileName;
-  // std::string csvName;
   if (argc > 1) {
     inputFile = argv[1];
-    // fileName = argv[1];
-    // csvName = argv[2];
   } else {
     throw std::runtime_error("-- Error! No file found");
   }
-
-  // ArgumentParser testing :
-  // ArgumentParser input(inputFile);
-  // input.ParseInputFile();
-
-  // ImageProcessing testing:
-  // ImageProcessing img(fileName);
-  // img.MorphologyOperations();
-  // img.GlobalThresholding();
-  // auto mat = img.GetBinaryImage();
-  // img.ContourDetection();
-  // img.ComputeMinimumDiameter();
-  // img.DrawMinimumDiameter();
-
-  // FileParser testing:
-  // FileParser parser(inputFile);
-  // parser.ReadCsvFile();
-  // std::vector<std::pair<float, float>> dataset{std::make_pair(0., 0.),
-  //                                              std::make_pair(100., 0.1)};
-  // parser.WriteOutputFile(dataset);
 
   //-----------------
   // Program testing:
   //-----------------
 
-  // Parse input file:
-  FileParser parser(inputFile);
-  // Read csv file:
-  parser.ReadCsvFile();
-  // Get the vector of images
-  std::vector<std::pair<std::string, float>> images = parser.GetImagesVector();
-  std::vector<std::pair<float, float>> output;
+  std::shared_ptr<FileParser> parser =
+      std::make_shared<FileParser>(inputFile); // Parse input txt file
+  parser->ReadCsvFile();                       // Read csv file
 
-  // Get the sample's area:
-  float area = parser.GetArea();
+  std::vector<std::pair<std::string, float>> images =
+      parser->GetImagesVector(); // Get the image-force vector
+  std::vector<std::pair<float, float>>
+      output; // Instantiate the output stress-deformation vector
 
-  // Initialize initial diameter in pixels:
-  int phi0;
+  bool show = parser->GetBoolShow(); // Show output image
+  bool save = parser->GetBoolSave(); // Save output image
 
+  float area = parser->GetArea(); // Get the sample's cross section area
+  int phi0; // Instantiate initial cross section diameter in pixels
+
+  // Iterate on elements of image-force vector
   for (std::vector<std::pair<std::string, float>>::const_iterator iter =
            images.begin();
        iter != images.end(); ++iter) {
@@ -77,16 +56,21 @@ int main(int argc, char **argv) {
     float stress{0.f};
 
     if (iter == images.begin()) {
-      phi0 = (float)img.GetMinimumPixelDistance();
+      phi0 = (float)img.GetMinimumPixelDistance(
+          show, save); // Set the reference minimum
+                       // cross section diameter
       deformation = 0.f;
     } else {
-      deformation = (float)abs(img.GetMinimumPixelDistance() - phi0) / phi0;
+      deformation =
+          (float)abs(img.GetMinimumPixelDistance(show, save) - phi0) / phi0;
       stress = (float)(iter->second) / area;
     }
-    output.push_back(std::make_pair(deformation, stress));
+
+    output.push_back(
+        std::make_pair(deformation, stress)); // Store stress-deformation
   }
 
-  parser.WriteOutputFile(output);
+  parser->WriteOutputFile(output); // Write output file
 
   //---------------
   // End of program

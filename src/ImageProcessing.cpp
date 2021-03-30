@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <vector>
 
+using namespace cv;
+
 typedef uchar Pixel;
 
 ImageProcessing::ImageProcessing(const std::string &imgName, const float &force)
@@ -18,37 +20,24 @@ ImageProcessing::ImageProcessing(const std::string &imgName, const float &force)
                  _imgName.end());
   _imgName.erase(std::remove(_imgName.begin(), _imgName.end(), '.'),
                  _imgName.end());
-  _img = imread(imgName, COLOR_BGR2GRAY);
-  if (_img.empty()) {
+  _img = std::make_shared<Mat>(imread(imgName, COLOR_BGR2GRAY));
+  if (_img->empty()) {
     std::cout << "-- Error! Could not read the image: " << imgName << std::endl;
   }
 };
 
-ImageProcessing::ImageProcessing(const std::string &imgName,
-                                 ThresholdType threshType) {
-  _img = imread(imgName, COLOR_BGR2GRAY);
-  if (_img.empty()) {
-    std::cout << "-- Error! Could not read the image: " << imgName << std::endl;
-  }
-  try {
-    _threshType = threshType;
-  } catch (...) {
-    throw std::invalid_argument(
-        "-- Error! Valid threshold types are: Binary, BinaryInv, Trunc, "
-        "Tozero, Otsu, Triangle ");
-  }
-};
-
-Mat ImageProcessing::GetImage() { return _img; }
+Mat ImageProcessing::GetImage() { return *_img; }
 
 Mat ImageProcessing::GetBinaryImage() { return _binaryImg; }
 
-int ImageProcessing::GetMinimumPixelDistance() {
+int ImageProcessing::GetMinimumPixelDistance(bool &show, bool &save) {
+  std::lock_guard<std::mutex> myLock(_mtx);
   MorphologyOperations();
   GlobalThresholding();
   ContourDetection();
   ComputeMinimumDiameter();
-  DrawMinimumDiameter();
+  ComputeMinimumEdges();
+  DrawMinimumDiameter(show, save);
   return _min_distance;
 }
 
@@ -70,15 +59,16 @@ void ImageProcessing::MorphologyOperations(int operationCode) {
       MORPH_RECT, Size(2 * morph_size + 1, 2 * morph_size + 1),
       Point(morph_size, morph_size));
   // Opening
-  morphologyEx(_img, _img, MORPH_OPEN, element, Point(-1, -1), 2);
+  morphologyEx(*_img, *_img, MORPH_OPEN, element, Point(-1, -1), 2);
 }
 
 void ImageProcessing::GlobalThresholding() {
-  Mat tmpImg = _img.clone();
-  uchar thresh = threshold(_img, tmpImg, 0, 255, THRESH_OTSU);
+  Mat *tmpImg = new Mat;
+  uchar thresh = threshold(*_img, *tmpImg, 0, 255, THRESH_OTSU);
+  delete tmpImg;
   std::cout << "-- Computed threshold = " << (int)thresh << std::endl;
 
-  _img.copyTo(
+  _img->copyTo(
       _binaryImg); // Just to make sure the Mat objects are of the same size.
 
   _binaryImg.forEach<Pixel>([thresh, this](Pixel &p, const int *position) {
@@ -89,8 +79,6 @@ void ImageProcessing::GlobalThresholding() {
 }
 
 void ImageProcessing::ContourDetection() {
-  // _contour = Mat::ones(_img.size(), _img.type()) * 255;
-
   for (int x = 0; x < _binaryImg.rows; x++) {
     Point2d left, right;
     bool b_left, b_right;
@@ -125,43 +113,50 @@ void ImageProcessing::ComputeMinimumDiameter() {
   std::cout << "-- Minimum distance in pixels: " << _min_distance << std::endl;
 }
 
-void ImageProcessing::DrawMinimumDiameter() {
-  bool save = true;
-  bool show = false;
+void ImageProcessing::ComputeMinimumEdges() {
 
-  Mat tmp; // new image to sketch the contour and miminum diameter
-
-  std::vector<Point2d>::iterator other =
+  std::vector<Point>::iterator other =
       _Rpoints.begin(); // to iterate on the _Lpoints and _Rpoints vectors
                         // simultaneously
 
   // draw the minmum diameter
-  auto res = std::find_if(
-      _Lpoints.begin(), _Lpoints.end(),
-      [this, &tmp, &other, show, save](Point2d &point) {
-        int local_distance = point.x - (*other).x;
-
-        if (local_distance == _min_distance) {
-          cvtColor(_img, tmp, COLOR_GRAY2BGR);
-          circle(tmp, point, 15, Scalar(0, 255, 0), -1);  // draw left circle
-          circle(tmp, *other, 15, Scalar(0, 255, 0), -1); // draw right circle
-          line(tmp, point, *other, Scalar(0, 0, 255), 2,
-               LINE_8); // draw horizontal line at the minimum diameter
-          if (save) {
-            const std::string out = "ET/" + _imgName + ".png";
-            imwrite(out, tmp); // Save the frame into a file
-          }
-          if (show) {
-            imshow("Press any key to exit", tmp);
-            waitKey(0); // Wait for a keystroke in the window
-          }
-          return true;
-        }
-        other++;
-        return false;
-      });
+  auto res = std::find_if(_Lpoints.begin(), _Lpoints.end(),
+                          [this, &other](Point &point) {
+                            int local_distance = point.x - (*other).x;
+                            if (local_distance == _min_distance) {
+                              _Lmin = point;
+                              _Rmin = *other;
+                              return true;
+                            }
+                            other++;
+                            return false;
+                          });
 }
 
+void ImageProcessing::DrawMinimumDiameter(bool &show, bool &save) {
+  // Mat tmp; // new image to sketch the contour and miminum diameter
+  Mat *tmp = new Mat;
+  cvtColor(*_img, *tmp, COLOR_GRAY2BGR);
+  polylines(*tmp, _Lpoints, false, Scalar(0, 0, 255), 10, LINE_8,
+            0); // draw leftcontour
+
+  polylines(*tmp, _Rpoints, false, Scalar(0, 0, 255), 10, LINE_8,
+            0); // draw right contour
+  line(*tmp, _Lmin, _Rmin, Scalar(0, 0, 255), 10,
+       LINE_8); // draw horizontal line at the minimum diameter
+  circle(*tmp, _Lmin, 18, Scalar(0, 255, 0), -1); // draw left circle
+  circle(*tmp, _Rmin, 18, Scalar(0, 255, 0),
+         -1); // draw right circle
+  if (save) {
+    const std::string out = "ET/" + _imgName + ".png";
+    imwrite(out, *tmp); // Save the frame into a file
+  }
+  if (show) {
+    imshow("Press any key to exit", *tmp);
+    waitKey(0); // Wait for a keystroke in the window
+  }
+  delete tmp;
+}
 /*template <typename T> T ImageProcessing::MatToVector(Mat mat) {
   T **array = new T *[mat.rows];
   for (int i = 0; i < mat.rows; ++i)
@@ -245,6 +240,6 @@ std::string ImageProcessing::TypeToStr(int &type) {
   r += "C";
   r += (chans + '0');
 
-  printf("Matrix: %s %dx%d \n", r.c_str(), _img.cols, _img.rows);
+  printf("Matrix: %s %dx%d \n", r.c_str(), _img->cols, _img->rows);
   return r;
 }

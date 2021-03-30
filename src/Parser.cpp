@@ -1,5 +1,7 @@
 #include "Parser.h"
+#include "ImageProcessing.h"
 
+#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -12,6 +14,9 @@
 #define PI 3.14159265359
 
 ArgumentParser::ArgumentParser(std::string inputFile) : _inputFile(inputFile) {}
+
+bool ArgumentParser::GetBoolShow() { return _show; }
+bool ArgumentParser::GetBoolSave() { return _save; }
 
 void ArgumentParser::ParseInputFile() {
   std::string line;
@@ -35,6 +40,10 @@ void ArgumentParser::ParseInputFile() {
           _Imgcol = std::stof(value);
         else if (key == "Delimiter")
           _delimiter = value[0];
+        else if (key == "Show")
+          _show = (value == "true");
+        else if (key == "Save")
+          _save = (value == "true");
       }
     }
   }

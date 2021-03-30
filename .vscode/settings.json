@@ -80,6 +80,7 @@
         "vector": "cpp",
         "filesystem": "cpp",
         "memory_resource": "cpp",
-        "__memory": "cpp"
+        "__memory": "cpp",
+        "future": "cpp"
     }
 }

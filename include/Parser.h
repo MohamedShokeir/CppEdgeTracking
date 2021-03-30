@@ -10,8 +10,9 @@ public:
   ArgumentParser() {}
   ArgumentParser(std::string inputFile);
 
-  // Setter:
-  // void SetLocalPath();
+  // Getter
+  bool GetBoolShow();
+  bool GetBoolSave();
 
   void ParseInputFile();
 
@@ -24,6 +25,9 @@ protected:
   char _delimiter;
 
 private:
+  bool _show;
+  bool _save;
+
   std::string _inputFile;
 };
 
