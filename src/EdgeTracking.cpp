@@ -1,5 +1,5 @@
-#include "FileParser.h"
 #include "ImageProcessing.h"
+#include "Parser.h"
 
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgcodecs.hpp"
@@ -13,17 +13,23 @@ using namespace cv;
 
 int main(int argc, char **argv) {
 
-  std::string fileName;
-  std::string csvName;
+  // Program input file:
+  std::string inputFile;
+  // std::string fileName;
+  // std::string csvName;
   if (argc > 1) {
-    fileName = argv[1];
-    csvName = argv[2];
+    inputFile = argv[1];
+    // fileName = argv[1];
+    // csvName = argv[2];
   } else {
-    std::cout << "-- Error! No input image" << std::endl;
-    exit(1);
+    throw std::runtime_error("-- Error! No file found");
   }
 
-  // ImageProcessing testin:
+  // ArgumentParser testing :
+  // ArgumentParser input(inputFile);
+  // input.ParseInputFile();
+
+  // ImageProcessing testing:
   // ImageProcessing img(fileName);
   // img.MorphologyOperations();
   // img.GlobalThresholding();
@@ -32,8 +38,8 @@ int main(int argc, char **argv) {
   // img.ComputeMinimumDiameter();
   // img.DrawMinimumDiameter();
 
-  // FileParser Testing
-  FileParser parser(csvName, 3, 1, ',');
+  // FileParser testing:
+  FileParser parser(inputFile);
   parser.ReadCsvFile();
   std::vector<std::pair<float, float>> dataset{std::make_pair(0., 0.),
                                                std::make_pair(100., 0.1)};

@@ -1,16 +1,48 @@
-#include "FileParser.h"
+#include "Parser.h"
 
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <utility>
 
-FileParser::FileParser(std::string cameraDir, int Fcol, int Imgcol,
-                       char delimiter)
-    : _cameraDir(cameraDir), _Fcol(Fcol), _Imgcol(Imgcol),
-      _delimiter(delimiter) {}
+ArgumentParser::ArgumentParser(std::string inputFile) : _inputFile(inputFile) {}
+
+void ArgumentParser::ParseInputFile() {
+  std::string line;
+  std::ifstream filestream(_inputFile);
+  std::string key;
+  std::string value;
+
+  if (filestream.is_open()) {
+    while (std::getline(filestream, line)) { // Read data, line by line
+      std::istringstream linestream(line);
+      while (linestream >> key >> value) {
+        if (key == "Name")
+          _name = value;
+        else if (key == "Camera_directory")
+          _cameraDir = "./" + value;
+        else if (key == "Diameter")
+          _diameter = std::stof(value);
+        else if (key == "Force")
+          _Fcol = std::stof(value);
+        else if (key == "Image")
+          _Imgcol = std::stof(value);
+        else if (key == "Delimiter")
+          _delimiter = value[0];
+      }
+    }
+  }
+  filestream.close(); // Close file
+}
+
+FileParser::FileParser(std::string inputFile) : ArgumentParser{inputFile} {
+  ParseInputFile();
+  _csvFile = _cameraDir + "/" + _name + ".csv";
+  _outFile = _name + ".res";
+}
 
 void FileParser::ReadCsvFile() {
 
@@ -18,7 +50,7 @@ void FileParser::ReadCsvFile() {
   std::string img_name;
   float force{0.f};
 
-  std::ifstream filestream(_cameraDir);
+  std::ifstream filestream(_csvFile);
 
   if (!filestream.is_open()) // Make sure the file is open
     throw std::runtime_error("-- Error! Could not open file");
@@ -34,11 +66,9 @@ void FileParser::ReadCsvFile() {
       while (std::getline(ss, line, _delimiter)) { // Get columns
         if (colIdx == _Fcol) {
           force = std::stof(line);
-          //   std::cout << "Image force: " << line << std::endl;
         }
         if (colIdx == _Imgcol) {
           img_name = line;
-          //   std::cout << "Image name: " << line << std::endl;
         }
         ++colIdx;
       }
@@ -56,26 +86,21 @@ void FileParser::ReadCsvFile() {
 
 void FileParser::WriteOutputFile(std::vector<std::pair<float, float>> &output) {
 
-  const char *dirname = "ET";
+  const char *dirname = "ET/";
   int outDir = mkdir(dirname, 0777);
 
   if (!outDir) // check if directory is created or not
     std::cout << "-- Results directory created" << std::endl;
 
-  std::string filename = "/out.res";
-  std::ofstream outFile(dirname + filename); // Create output filestream object
+  std::ofstream outFile(dirname + _outFile); // Create output filestream object
 
   outFile << "1-Phi/Phi0(mm/mm)\t2-F/S0(MPa)\n"; // Write header
 
   outFile << std::fixed; // set fixed precisioin
-
   std::for_each(output.begin(), output.end(),
                 [&outFile](std::pair<float, float> &i) {
                   outFile << i.first << "\t" << i.second << "\n";
                 });
 
-  //   for (int i = 0; i < output.size(); ++i) {
-  //     outFile << output.at(i).first << "\t" << output.at(i).second << "\n";
-  //   }
   outFile.close(); // Close the file
 }
