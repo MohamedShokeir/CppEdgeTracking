@@ -3,12 +3,13 @@
 
 #include "Parser.h"
 
-#include <deque>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <opencv2/core.hpp>    // Core functionality
 #include <opencv2/highgui.hpp> // Image Processing
 #include <opencv2/imgproc.hpp> // High-level GUI
+#include <thread>
 
 using namespace cv;
 
@@ -29,7 +30,9 @@ public:
   // Getters
   Mat GetImage();
   Mat GetBinaryImage();
-  int GetMinimumPixelDistance(bool &show, bool &save);
+  std::string GetImageName();
+  std::shared_ptr<float> *GetMinimumPixelDiameterAndForce(bool &&show,
+                                                          bool &&save);
 
   void ShowImage(Mat &src);
   void MorphologyOperations(int operationCode = 2);
@@ -63,10 +66,11 @@ private:
   int _min_distance;
 
   float _force;
-
-  std::mutex _mtx;
+  std::shared_ptr<float> diameter_force[2];
 
   ThresholdType _threshType;
+
+  // std::mutex _mtx;
 };
 
 #endif

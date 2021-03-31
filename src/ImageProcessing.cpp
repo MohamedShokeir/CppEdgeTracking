@@ -2,8 +2,6 @@
 #include "Parser.h"
 
 #include <algorithm>
-#include <cassert>
-#include <deque>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -30,15 +28,19 @@ Mat ImageProcessing::GetImage() { return *_img; }
 
 Mat ImageProcessing::GetBinaryImage() { return _binaryImg; }
 
-int ImageProcessing::GetMinimumPixelDistance(bool &show, bool &save) {
-  std::lock_guard<std::mutex> myLock(_mtx);
+std::string ImageProcessing::GetImageName() { return _imgName; }
+
+std::shared_ptr<float> *
+ImageProcessing::GetMinimumPixelDiameterAndForce(bool &&show, bool &&save) {
   MorphologyOperations();
   GlobalThresholding();
   ContourDetection();
   ComputeMinimumDiameter();
   ComputeMinimumEdges();
   DrawMinimumDiameter(show, save);
-  return _min_distance;
+  diameter_force[0] = std::make_shared<float>(_min_distance);
+  diameter_force[1] = std::make_shared<float>(_force);
+  return diameter_force;
 }
 
 void ImageProcessing::ShowImage(Mat &src) {
@@ -109,6 +111,7 @@ void ImageProcessing::ContourDetection() {
 
 void ImageProcessing::ComputeMinimumDiameter() {
   // find minumum diameter
+  // std::unique_lock<std::mutex> lck(_mtx);
   _min_distance = *std::min_element(_distances.begin(), _distances.end());
   std::cout << "-- Minimum distance in pixels: " << _min_distance << std::endl;
 }
@@ -147,6 +150,8 @@ void ImageProcessing::DrawMinimumDiameter(bool &show, bool &save) {
   circle(*tmp, _Lmin, 18, Scalar(0, 255, 0), -1); // draw left circle
   circle(*tmp, _Rmin, 18, Scalar(0, 255, 0),
          -1); // draw right circle
+
+  // minEnclosingCircle(_Lpoints, _Lmin, float &radius);
   if (save) {
     const std::string out = "ET/" + _imgName + ".png";
     imwrite(out, *tmp); // Save the frame into a file

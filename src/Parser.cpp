@@ -111,7 +111,7 @@ void FileParser::WriteOutputFile(std::vector<std::pair<float, float>> &output) {
 
   std::ofstream outFile(dirname + _outFile); // Create output filestream object
 
-  outFile << "1-Phi/Phi0(mm/mm)\t2-F/S0(MPa)\n"; // Write header
+  outFile << "#\t1-Phi/Phi0(mm/mm)\t2-F/S0(MPa)\n"; // Write header
 
   outFile << std::fixed; // set fixed precisioin
   std::for_each(output.begin(), output.end(),
