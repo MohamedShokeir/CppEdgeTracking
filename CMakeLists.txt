@@ -2,8 +2,12 @@ cmake_minimum_required(VERSION 3.7)
 
 project(EdgeTracking)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_BUILD_TYPE debug)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CXX_FLAGS "-Wall")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -pthread")
 set(CMAKE_OSX_ARCHITECTURES "arm64")
 # set OpenCV_DIR variable equal to the path to the cmake
 # files within the previously installed opencv program

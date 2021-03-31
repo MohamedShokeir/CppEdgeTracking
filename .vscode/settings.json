@@ -81,6 +81,7 @@
         "filesystem": "cpp",
         "memory_resource": "cpp",
         "__memory": "cpp",
-        "future": "cpp"
+        "future": "cpp",
+        "__functional_03": "cpp"
     }
 }
