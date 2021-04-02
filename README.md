@@ -2,7 +2,7 @@
 
 EdgeTracking (ET) is an image analysis code that detects and calculates the minimum distance of between 2 edges.
 
-![GitHub Logo](./logo.png = 250x250)
+![GitHub Logo](./logo.png){:height="200px" width="500px"}
 
 ## Dependencies for Running Locally
 * cmake >= 2.8
