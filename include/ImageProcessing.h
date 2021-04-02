@@ -24,6 +24,17 @@ enum ThresholdType {
   Triangle = THRESH_TRIANGLE
 };
 
+template <class T> class QueueManager {
+public:
+  T receive();
+  void send(T &&msg);
+
+private:
+  std::deque<T> _queue;
+  std::condition_variable _condition;
+  std::mutex _mtx;
+};
+
 class ImageProcessing {
 public:
   ImageProcessing() {}
@@ -83,7 +94,7 @@ private:
 
   ThresholdType _threshType;
 
-  QueueManager<int> _queue;
+  QueueManager<bool> _queue;
 
   bool _user_closed_window = false;
 

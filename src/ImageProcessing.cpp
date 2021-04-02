@@ -14,6 +14,28 @@ using namespace cv;
 
 typedef uchar Pixel;
 
+template <typename T> T QueueManager<T>::receive() {
+  std::unique_lock<std::mutex> lck(_mtx);
+  _condition.wait(lck, [this] {
+    return !_queue.empty();
+  }); // pass unique lock to condition variable
+
+  // remove last vector element from queue
+  T msg = std::move(_queue.back());
+  _queue.pop_back();
+
+  return msg; // will not be copied due to return value optimization (RVO) in
+              // C++
+}
+
+template <typename T> void QueueManager<T>::send(T &&img) {
+  std::lock_guard<std::mutex> lck(_mtx);
+  std::cout << "   Message # will be added to the queue" << std::endl;
+  _queue.push_back(std::move(img));
+  _condition
+      .notify_one(); // notify client after pushing new Vehicle into vector
+}
+
 ImageProcessing::ImageProcessing(const std::string &imgName, const float &force)
     : _imgName(imgName), _force(force) {
   _imgName.erase(std::remove(_imgName.begin(), _imgName.end(), '/'),
@@ -272,8 +294,10 @@ void ImageProcessing::DrawMinimumDiameter(bool &show, bool &save) {
   }
   if (show) {
     std::unique_lock<std::mutex> lck(_mtx);
-    imshow("Press any key to exit", *tmp);
+    namedWindow(GetImageName(), WINDOW_AUTOSIZE);
+    imshow(GetImageName(), *tmp);
     waitKey(0); // Wait for a keystroke in the window
+    destroyAllWindows();
     lck.unlock();
   }
   delete tmp;

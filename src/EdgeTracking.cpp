@@ -51,67 +51,75 @@ int main(int argc, char **argv) {
   //---------------------
   // Without concurrency:
   //---------------------
-  // Iterate on elements of image-force vector
-  for (std::vector<std::pair<std::string, float>>::const_iterator iter =
-           images.begin();
-       iter != images.end(); ++iter) {
-
-    ImageProcessing img(iter->first, iter->second);
-
-    float deformation{0.f};
-    float stress{0.f};
-
-    if (iter == images.begin()) {
-      phi0 = img.GetMinimumPixelDiameterAndForce(
-          show, save)[0]; // Set the reference minimum cross section diameter
-      deformation = 0.f;
-    } else {
-      deformation =
-          (float)abs(img.GetMinimumPixelDiameterAndForce(show, save)[0] -
-                     phi0) /
-          phi0;
-      stress = (float)(iter->second) / area;
-    }
-    output.push_back(
-        std::make_pair(deformation, stress)); // Store stress-deformation
-  }
-
-  //------------------
-  // With concurrency:
-  //------------------
-  // std::vector<std::future<float *>> futures;
-
+  // // Iterate on elements of image-force vector
   // for (std::vector<std::pair<std::string, float>>::const_iterator iter =
   //          images.begin();
   //      iter != images.end(); ++iter) {
 
-  //   ImageProcessing img(iter->first, iter->second); // Create an instance
+  //   ImageProcessing img(iter->first, iter->second);
+
+  //   float deformation{0.f};
+  //   float stress{0.f};
 
   //   if (iter == images.begin()) {
   //     phi0 = img.GetMinimumPixelDiameterAndForce(
   //         show, save)[0]; // Set the reference minimum cross section diameter
-  //     output.push_back(std::make_pair(0.f, 0.f)); // Store stress -
-  //     deformation
+  //     deformation = 0.f;
   //   } else {
-  //     futures.emplace_back(std::async(
-  //         std::launch::async,
-  //         &ImageProcessing::GetMinimumPixelDiameterAndForce, img, show,
-  //         save));
+  //     deformation =
+  //         (float)abs(img.GetMinimumPixelDiameterAndForce(show, save)[0] -
+  //                    phi0) /
+  //         phi0;
+  //     stress = (float)(iter->second) / area;
   //   }
+  //   output.push_back(
+  //       std::make_pair(deformation, stress)); // Store stress-deformation
   // }
 
-  // std::for_each(futures.begin(), futures.end(), [&](std::future<float *>
-  // &ftr) {
-  //   ftr.wait();
-  //   auto res = ftr.get();
-  //   deformation = abs(res[0] - phi0) / phi0;
-  //   stress = (res[1]) / area;
+  //------------------
+  // With concurrency:
+  //------------------
+  // std::vector<std::promise<float *>> promises;
+  // std::vector<std::future<float *>> futures;
+  std::vector<std::future<float *>> futures;
 
-  //   output.push_back(
-  //       std::make_pair(deformation, stress)); // Store stress - deformation
-  // });
+  for (std::vector<std::pair<std::string, float>>::const_iterator iter =
+           images.begin();
+       iter != images.end(); ++iter) {
 
-  // parser->WriteOutputFile(output); // Write output file
+    ImageProcessing img(iter->first, iter->second); // Create an instance
+
+    if (iter == images.begin()) {
+      phi0 = img.GetMinimumPixelDiameterAndForce(
+          show, save)[0]; // Set the reference minimum cross section diameter
+      output.push_back(std::make_pair(0.f, 0.f)); // Store stress - deformation
+    } else {
+      if (show)
+        futures.emplace_back(
+            std::async(std::launch::deferred,
+                       &ImageProcessing::GetMinimumPixelDiameterAndForce, img,
+                       show, save));
+      else
+        futures.emplace_back(
+            std::async(std::launch::async,
+                       &ImageProcessing::GetMinimumPixelDiameterAndForce, img,
+                       show, save));
+      // std::thread t(&ImageProcessing::GetMinimumPixelDiameterAndForce, img,
+      //               show, save);
+    }
+  }
+
+  std::for_each(futures.begin(), futures.end(), [&](std::future<float *> &ftr) {
+    ftr.wait();
+    auto res = ftr.get();
+    deformation = abs(res[0] - phi0) / phi0;
+    stress = (res[1]) / area;
+
+    output.push_back(
+        std::make_pair(deformation, stress)); // Store stress - deformation
+  });
+
+  parser->WriteOutputFile(output); // Write output file
 
   //---------------
   // End of program
