@@ -126,8 +126,8 @@ float *ImageProcessing::GetMinimumPixelDiameterAndForce(bool show, bool save) {
   ComputeMinimumEdges();
   DrawMinimumDiameter(show, save);
 
-  std::unique_lock<std::mutex> lck(_mtx);
-  _cond.wait(lck, [this] { return _user_closed_window; });
+  // std::unique_lock<std::mutex> lck(_mtx);
+  // _cond.wait(lck, [this] { return _user_closed_window; });
 
   diameter_force[0] = (float)_min_distance;
   diameter_force[1] = (float)_force;
@@ -274,8 +274,7 @@ void ImageProcessing::DrawMinimumDiameter(bool &show, bool &save) {
     std::unique_lock<std::mutex> lck(_mtx);
     imshow("Press any key to exit", *tmp);
     waitKey(0); // Wait for a keystroke in the window
-    _user_closed_window = true;
-    _cond.notify_one(); // notif
+    lck.unlock();
   }
   delete tmp;
 }
