@@ -12,6 +12,7 @@ public:
   // Getter
   bool GetBoolShow();
   bool GetBoolSave();
+  float GetPixelRatio();
 
   void ParseInputFile();
 
@@ -21,6 +22,7 @@ protected:
   int _Fcol;
   int _Imgcol;
   float _diameter;
+  float _pixelRatio;
   char _delimiter;
 
 private:
@@ -39,7 +41,7 @@ public:
   std::vector<std::pair<std::string, float>> GetImagesVector();
 
   void ReadCsvFile();
-  void WriteOutputFile(std::vector<std::pair<float, float>> &output);
+  void WriteOutputFile(std::vector<std::array<float, 4>> &output);
 
 private:
   std::string _csvFile;

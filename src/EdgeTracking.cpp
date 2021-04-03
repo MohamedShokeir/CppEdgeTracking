@@ -36,17 +36,20 @@ int main(int argc, char **argv) {
 
   std::vector<std::pair<std::string, float>> images =
       parser->GetImagesVector(); // Get the image-force vector
-  std::vector<std::pair<float, float>>
+  std::vector<std::array<float, 4>>
       output; // Instantiate the output stress-deformation vector
 
   bool show = parser->GetBoolShow(); // Show output image
   bool save = parser->GetBoolSave(); // Save output image
+  float pixelRatio = parser->GetPixelRatio();
 
   float area = parser->GetArea(); // Get the sample's cross section area
   int phi0; // Instantiate initial cross section diameter in pixels
-  float deformation{
-      0.f};          // Instantiate calculated deformation = (phi-phi0)/phi0
-  float stress{0.f}; // Instantiate calculated stress = force/area
+  float &&deformation{
+      0.f};            // Instantiate calculated deformation = (phi-phi0)/phi0
+  float &&stress{0.f}; // Instantiate calculated stress = force/area
+  float &&LcurvatureRadius{0.f}; // Instantiate left curvature radius
+  float &&RcurvatureRadius{0.f}; // Instantiate right curvature radius
 
   //---------------------
   // Without concurrency:
@@ -79,33 +82,39 @@ int main(int argc, char **argv) {
   //------------------
   // With concurrency:
   //------------------
-  // std::vector<std::promise<float *>> promises;
-  // std::vector<std::future<float *>> futures;
   std::vector<std::future<float *>> futures;
+  std::shared_ptr<QueueManager<bool>> queue(new QueueManager<bool>);
+  std::shared_ptr<std::mutex> mutex(
+      new std::mutex); // To lock the screen when cout-ing
 
   for (std::vector<std::pair<std::string, float>>::const_iterator iter =
            images.begin();
        iter != images.end(); ++iter) {
 
-    ImageProcessing img(iter->first, iter->second); // Create an instance
+    ImageProcessing img(iter->first, iter->second, queue,
+                        mutex); // Create an instance
 
     if (iter == images.begin()) {
-      phi0 = img.GetMinimumPixelDiameterAndForce(
-          show, save)[0]; // Set the reference minimum cross section diameter
-      output.push_back(std::make_pair(0.f, 0.f)); // Store stress - deformation
+      if (show) {
+        // Send screen_is_free to queue manager to print to screen first image
+        bool screen_free = true;
+        queue->send(std::move(screen_free));
+      }
+      auto res = img.Process(
+          show, save); // Set the reference minimum cross section diameter
+      phi0 = res[0];
+      LcurvatureRadius = res[2] * pixelRatio;
+      RcurvatureRadius = res[3] * pixelRatio;
+      output.emplace_back(
+          std::array<float, 4>{0.f, 0.f, LcurvatureRadius,
+                               RcurvatureRadius}); // Store stress - deformation
     } else {
       if (show)
-        futures.emplace_back(
-            std::async(std::launch::deferred,
-                       &ImageProcessing::GetMinimumPixelDiameterAndForce, img,
-                       show, save));
+        futures.emplace_back(std::async(
+            std::launch::deferred, &ImageProcessing::Process, img, show, save));
       else
-        futures.emplace_back(
-            std::async(std::launch::async,
-                       &ImageProcessing::GetMinimumPixelDiameterAndForce, img,
-                       show, save));
-      // std::thread t(&ImageProcessing::GetMinimumPixelDiameterAndForce, img,
-      //               show, save);
+        futures.emplace_back(std::async(
+            std::launch::async, &ImageProcessing::Process, img, show, save));
     }
   }
 
@@ -114,13 +123,16 @@ int main(int argc, char **argv) {
     auto res = ftr.get();
     deformation = abs(res[0] - phi0) / phi0;
     stress = (res[1]) / area;
+    LcurvatureRadius = res[2] * pixelRatio;
+    RcurvatureRadius = res[3] * pixelRatio;
 
-    output.push_back(
-        std::make_pair(deformation, stress)); // Store stress - deformation
+    // Add results of to the ouput vector
+    output.emplace_back(
+        std::array<float, 4>{deformation, stress, LcurvatureRadius,
+                             RcurvatureRadius}); // Store stress - deformation
   });
 
   parser->WriteOutputFile(output); // Write output file
-
   //---------------
   // End of program
   //---------------

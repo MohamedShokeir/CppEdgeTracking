@@ -1,5 +1,5 @@
 #include "ImageProcessing.h"
-#include "Parser.h"
+// #include "Parser.h"
 
 #include <algorithm>
 #include <cmath>
@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -30,14 +31,16 @@ template <typename T> T QueueManager<T>::receive() {
 
 template <typename T> void QueueManager<T>::send(T &&img) {
   std::lock_guard<std::mutex> lck(_mtx);
-  std::cout << "   Message # will be added to the queue" << std::endl;
   _queue.push_back(std::move(img));
   _condition
       .notify_one(); // notify client after pushing new Vehicle into vector
 }
 
-ImageProcessing::ImageProcessing(const std::string &imgName, const float &force)
-    : _imgName(imgName), _force(force) {
+// Constructor
+ImageProcessing::ImageProcessing(const std::string &imgName, const float &force,
+                                 std::shared_ptr<QueueManager<bool>> queue,
+                                 std::shared_ptr<std::mutex> mutex)
+    : _imgName(imgName), _force(force), _queue(queue), _mtx(mutex) {
   _imgName.erase(std::remove(_imgName.begin(), _imgName.end(), '/'),
                  _imgName.end());
   _imgName.erase(std::remove(_imgName.begin(), _imgName.end(), '.'),
@@ -51,9 +54,11 @@ ImageProcessing::ImageProcessing(const std::string &imgName, const float &force)
 // Copy Constructor
 ImageProcessing::ImageProcessing(const ImageProcessing &source) {
   _img = source._img;
+  _mtx = source._mtx;
   _force = source._force;
   _Lmin = source._Lmin;
   _Rmin = source._Rmin;
+  _queue = source._queue;
   _Lpoints = source._Lpoints;
   _Lxpoints = source._Lxpoints;
   _Rpoints = source._Rpoints;
@@ -62,7 +67,7 @@ ImageProcessing::ImageProcessing(const ImageProcessing &source) {
   _distances = source._distances;
   _binaryImg = source._binaryImg;
   _min_distance = source._min_distance;
-  *diameter_force = *source.diameter_force;
+  *diameter_force_curvatureRadius = *source.diameter_force_curvatureRadius;
 
   // std::cout << "Copy Constructor " << std::endl;
 }
@@ -73,9 +78,11 @@ ImageProcessing &ImageProcessing::operator=(const ImageProcessing &source) {
     return *this;
 
   _img = source._img;
+  _mtx = source._mtx;
   _force = source._force;
   _Lmin = source._Lmin;
   _Rmin = source._Rmin;
+  _queue = source._queue;
   _Lpoints = source._Lpoints;
   _Lxpoints = source._Lxpoints;
   _Rpoints = source._Rpoints;
@@ -84,7 +91,7 @@ ImageProcessing &ImageProcessing::operator=(const ImageProcessing &source) {
   _distances = source._distances;
   _binaryImg = source._binaryImg;
   _min_distance = source._min_distance;
-  *diameter_force = *source.diameter_force;
+  *diameter_force_curvatureRadius = *source.diameter_force_curvatureRadius;
 
   // std::cout << "Copy Assignement Operator" << std::endl;
   return *this;
@@ -93,9 +100,11 @@ ImageProcessing &ImageProcessing::operator=(const ImageProcessing &source) {
 // Move Constructor
 ImageProcessing::ImageProcessing(ImageProcessing &&source) {
   _img = source._img;
+  _mtx = source._mtx;
   _force = source._force;
   _Lmin = source._Lmin;
   _Rmin = source._Rmin;
+  _queue = source._queue;
   _Lpoints = source._Lpoints;
   _Lxpoints = source._Lxpoints;
   _Rpoints = source._Rpoints;
@@ -104,7 +113,7 @@ ImageProcessing::ImageProcessing(ImageProcessing &&source) {
   _distances = source._distances;
   _binaryImg = source._binaryImg;
   _min_distance = source._min_distance;
-  *diameter_force = *source.diameter_force;
+  *diameter_force_curvatureRadius = *source.diameter_force_curvatureRadius;
 
   // std::cout << "Move Constructor " << std::endl;
 }
@@ -115,9 +124,11 @@ ImageProcessing &ImageProcessing::operator=(ImageProcessing &&source) {
     return *this;
 
   _img = source._img;
+  _mtx = source._mtx;
   _force = source._force;
   _Lmin = source._Lmin;
   _Rmin = source._Rmin;
+  _queue = source._queue;
   _Lpoints = source._Lpoints;
   _Lxpoints = source._Lxpoints;
   _Rpoints = source._Rpoints;
@@ -126,7 +137,7 @@ ImageProcessing &ImageProcessing::operator=(ImageProcessing &&source) {
   _distances = source._distances;
   _binaryImg = source._binaryImg;
   _min_distance = source._min_distance;
-  *diameter_force = *source.diameter_force;
+  *diameter_force_curvatureRadius = *source.diameter_force_curvatureRadius;
 
   _img = nullptr;
 
@@ -140,25 +151,12 @@ Mat ImageProcessing::GetBinaryImage() { return _binaryImg; }
 
 std::string ImageProcessing::GetImageName() { return _imgName; }
 
-float *ImageProcessing::GetMinimumPixelDiameterAndForce(bool show, bool save) {
-  MorphologyOperations();
-  GlobalThresholding();
-  ContourDetection();
-  ComputeMinimumDiameter();
-  ComputeMinimumEdges();
-  DrawMinimumDiameter(show, save);
-
-  // std::unique_lock<std::mutex> lck(_mtx);
-  // _cond.wait(lck, [this] { return _user_closed_window; });
-
-  diameter_force[0] = (float)_min_distance;
-  diameter_force[1] = (float)_force;
-  return diameter_force;
-}
-
 void ImageProcessing::ShowImage(Mat &src) {
+  std::unique_lock<std::mutex> lck(*_mtx);
   imshow("Press any key to exit", src);
   waitKey(0); // Wait for a keystroke in the window
+  destroyAllWindows();
+  lck.unlock();
 }
 
 void ImageProcessing::MorphologyOperations(int operationCode) {
@@ -181,9 +179,9 @@ void ImageProcessing::GlobalThresholding() {
   Mat *tmpImg = new Mat;
   uchar thresh = threshold(*_img, *tmpImg, 0, 255, THRESH_OTSU);
   delete tmpImg;
-  std::unique_lock<std::mutex> lck(_mtx);
+  std::lock_guard<std::mutex> lck(*_mtx);
   std::cout << "-- Computed threshold = " << (int)thresh << std::endl;
-  lck.unlock();
+  // lck.unlock();
 
   _img->copyTo(
       _binaryImg); // Just to make sure the Mat objects are of the same size.
@@ -206,19 +204,21 @@ void ImageProcessing::ContourDetection() {
       const int current = ptr[y];
       const int next = ptr[y + 1];
       if (current - next < 0) { // detect left contour
-        left = Point2d(y, x);
-        b_left = true; // left contour detected !
+        right = Point2d(y, x);
+        b_right = true; // left contour detected !
 
       } else if (current - next > 0) { // detect right contour
-        right = Point2d(y, x);
-        b_right = true; // right contour detected !
+        left = Point2d(y, x);
+        b_left = true; // right contour detected !
       }
     } // end of one row
     if (b_left && b_right) {
       _Rpoints.push_back(right); // push back all 2D points of the right contour
       _Rxpoints.push_back(right.x);
+      _Rypoints.push_back(right.y);
       _Lpoints.push_back(left); // push back all 2D points of the left contour
       _Lxpoints.push_back(left.x);
+      _Lypoints.push_back(left.y);
       _distances.push_back(abs(right.x - left.x)); // push back all distances
     }
     b_left = false;
@@ -226,30 +226,12 @@ void ImageProcessing::ContourDetection() {
   }                  // end of column
 }
 
-template <typename T>
-std::vector<T> ImageProcessing::LinearInterpolation(const std::vector<T> &vec,
-                                                    std::size_t k) {
-  if (vec.empty())
-    return {};
-
-  std::vector<T> res(vec.size() * (k - 1) + 1);
-
-  for (std::size_t i = 0; i + 1 < vec.size(); ++i) {
-    for (std::size_t j = 0; j != k; ++j) {
-      res[i * k + j] = std::lerp(vec[i], vec[i + 1], float(j) / k);
-    }
-  }
-  res.back() = vec.back();
-
-  return res;
-}
-
 void ImageProcessing::ComputeMinimumDiameter() {
-  // auto left = LinearInterpolation(_Lxpoints, _Rxpoints.size() / 100);
-  // auto right = LinearInterpolation(_Rxpoints, _Rxpoints.size() / 100);
+  // Calculate minimum diameter:
   _min_distance = *std::min_element(_distances.begin(), _distances.end());
-  std::unique_lock<std::mutex> lck(_mtx);
-  std::cout << "-- Minimum distance in pixels: " << _min_distance << std::endl;
+  std::lock_guard<std::mutex> lck(*_mtx); // Lock the terminal for printing
+  std::cout << "-- Minimum distance in pixels: " << _min_distance << '\n'
+            << std::endl;
 }
 
 void ImageProcessing::ComputeMinimumEdges() {
@@ -260,7 +242,7 @@ void ImageProcessing::ComputeMinimumEdges() {
   // draw the minmum diameter
   auto res = std::find_if(_Lpoints.begin(), _Lpoints.end(),
                           [this, &other](Point &point) {
-                            int local_distance = point.x - (*other).x;
+                            auto local_distance = abs(point.x - (*other).x);
                             if (local_distance == _min_distance) {
                               _Lmin = point;
                               _Rmin = *other;
@@ -271,37 +253,94 @@ void ImageProcessing::ComputeMinimumEdges() {
                           });
 }
 
-void ImageProcessing::DrawMinimumDiameter(bool &show, bool &save) {
-  // Mat tmp; // new image to sketch the contour and miminum diameter
-  Mat *tmp = new Mat;
-  cvtColor(*_img, *tmp, COLOR_GRAY2BGR);
-  polylines(*tmp, _Lpoints, false, Scalar(0, 0, 255), 10, LINE_8,
+void ImageProcessing::DrawResults() {
+  cvtColor(*_img, *_img, COLOR_GRAY2BGR); // Transform image to a rgb image
+  polylines(*_img, _Lpoints, false, Scalar(0, 0, 255), 10, LINE_AA,
             0); // draw leftcontour
-
-  polylines(*tmp, _Rpoints, false, Scalar(0, 0, 255), 10, LINE_8,
+  polylines(*_img, _Rpoints, false, Scalar(0, 0, 255), 10, LINE_AA,
             0); // draw right contour
-  line(*tmp, _Lmin, _Rmin, Scalar(0, 0, 255), 10,
+  line(*_img, _Lmin, _Rmin, Scalar(0, 0, 255), 10,
        LINE_8); // draw horizontal line at the minimum diameter
-  circle(*tmp, _Lmin, 18, Scalar(0, 255, 0), -1); // draw left circle
-  circle(*tmp, _Rmin, 18, Scalar(0, 255, 0),
-         -1); // draw right circle
-  // minEnclosingCircle(_Lpoints, _Lmin, float &radius);
-  if (save) {
-    std::unique_lock<std::mutex> lck(_mtx);
-    const std::string out = "ET/" + _imgName + ".png";
-    imwrite(out, *tmp); // Save the frame into a file
-    lck.unlock();
-  }
-  if (show) {
-    std::unique_lock<std::mutex> lck(_mtx);
-    namedWindow(GetImageName(), WINDOW_AUTOSIZE);
-    imshow(GetImageName(), *tmp);
-    waitKey(0); // Wait for a keystroke in the window
-    destroyAllWindows();
-    lck.unlock();
-  }
-  delete tmp;
+
+  // Fit circle on left and right detected arcs
+  Point2f center1(0., 0.);
+  Point2f center2(0., 0.);
+  approxPolyDP(_Rpoints, _Rpoints, 3, true);
+  approxPolyDP(_Lpoints, _Lpoints, 3, true);
+
+  minEnclosingCircle(_Rpoints, center1, _RCurvatureRadius);
+  minEnclosingCircle(_Rpoints, center2, _LCurvatureRadius);
+
+  // std::ostringstream ss1;
+  // ss1 << _RCurvatureRadius * 0.00444;
+  // std::string stringRradius(ss1.str());
+
+  // std::ostringstream ss2;
+  // ss2 << "Radius = ";
+  // ss2 << _LCurvatureRadius * 0.00444 << "mm";
+  // std::string stringLradius(ss2.str());
+
+  Point2f Rcenter(_Rmin.x + _RCurvatureRadius, _Rmin.y);
+  Point2f Lcenter(_Lmin.x - _LCurvatureRadius, _Lmin.y);
+  circle(*_img, Lcenter, _LCurvatureRadius, Scalar(255, 255, 255),
+         2); // Draw the circle that fits the left contour
+  // putText(*tmp, stringRradius, _Rmin, FONT_HERSHEY_SIMPLEX, 2, Scalar(0, 0,
+  // 0), 2, LINE_AA);
+  circle(*_img, Rcenter, _RCurvatureRadius, Scalar(255, 255, 255),
+         2); // Draw the circle that fits the right contour
+  // putText(*tmp, stringLradius, _Lmin, FONT_HERSHEY_SIMPLEX, 2, Scalar(0, 0,
+  // 0), 2, LINE_AA);
+
+  circle(*_img, _Lmin, 18, Scalar(0, 255, 0),
+         -1); // draw a point on the left of the horizontal line at the minimum
+              // diameter
+  circle(*_img, _Rmin, 18, Scalar(0, 255, 0),
+         -1); // draw a point on the right of the horizontal line at the minimum
+              // diameter
 }
+
+void ImageProcessing::WaitForScreen() {
+  while (true) {
+    bool ready = ImageProcessing::_queue->receive();
+    if (ready)
+      return;
+  }
+}
+
+float *ImageProcessing::Process(const bool show, const bool save) {
+  MorphologyOperations();
+  GlobalThresholding();
+  ContourDetection();
+  ComputeMinimumDiameter();
+  ComputeMinimumEdges();
+  DrawResults();
+
+  if (show) {
+    WaitForScreen();
+    namedWindow(GetImageName(), WINDOW_AUTOSIZE);
+    imshow(_imgName, *_img);
+    waitKey(0); // Wait for a keystroke in the window
+    waitKey(1);
+    destroyAllWindows();
+  }
+
+  bool _screen_free = true;
+  _queue->send(std::move(_screen_free));
+
+  if (save) {
+    std::unique_lock<std::mutex> lck(*_mtx); // Lock the terminal for printing
+    const std::string out = "ET/" + _imgName + ".png";
+    imwrite(out, *_img); // Save the frame into a file
+    lck.unlock();
+  }
+
+  diameter_force_curvatureRadius[0] = (float)_min_distance;
+  diameter_force_curvatureRadius[1] = (float)_force;
+  diameter_force_curvatureRadius[2] = (float)_LCurvatureRadius;
+  diameter_force_curvatureRadius[3] = (float)_RCurvatureRadius;
+  return diameter_force_curvatureRadius;
+}
+
 /*template <typename T> T ImageProcessing::MatToVector(Mat mat) {
   T **array = new T *[mat.rows];
   for (int i = 0; i < mat.rows; ++i)

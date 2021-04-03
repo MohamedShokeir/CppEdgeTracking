@@ -13,10 +13,19 @@
 
 #define PI 3.14159265359
 
-ArgumentParser::ArgumentParser(std::string inputFile) : _inputFile(inputFile) {}
+ArgumentParser::ArgumentParser(std::string inputFile) : _inputFile(inputFile) {
+  const char *dirname = "ET/";
+  int outDir = mkdir(dirname, 0777);
+
+  if (!outDir) // check if directory is created or not
+    std::cout << "-- Results directory created" << std::endl;
+
+  std::ofstream outFile(dirname);
+}
 
 bool ArgumentParser::GetBoolShow() { return _show; }
 bool ArgumentParser::GetBoolSave() { return _save; }
+float ArgumentParser::GetPixelRatio() { return _pixelRatio; }
 
 void ArgumentParser::ParseInputFile() {
   std::string line;
@@ -44,6 +53,8 @@ void ArgumentParser::ParseInputFile() {
           _show = (value == "true");
         else if (key == "Save")
           _save = (value == "true");
+        else if (key == "Pixel_mm_ratio")
+          _pixelRatio = std::stof(value);
       }
     }
   }
@@ -101,23 +112,24 @@ void FileParser::ReadCsvFile() {
   //             << std::endl;
 }
 
-void FileParser::WriteOutputFile(std::vector<std::pair<float, float>> &output) {
+void FileParser::WriteOutputFile(std::vector<std::array<float, 4>> &output) {
 
   const char *dirname = "ET/";
-  int outDir = mkdir(dirname, 0777);
+  // int outDir = mkdir(dirname, 0777);
 
-  if (!outDir) // check if directory is created or not
-    std::cout << "-- Results directory created" << std::endl;
+  // if (!outDir) // check if directory is created or not
+  //   std::cout << "-- Results directory created" << std::endl;
 
   std::ofstream outFile(dirname + _outFile); // Create output filestream object
 
-  outFile << "#\t1-Phi/Phi0(mm/mm)\t2-F/S0(MPa)\n"; // Write header
+  outFile << "#\t1-phi/phi0(mm/mm)\t2-F/S0(MPa)\t3-Curvature radius "
+             "left(mm)\t4-Curvature radius right(mm)\n"; // Write header
 
   outFile << std::fixed; // set fixed precisioin
-  std::for_each(output.begin(), output.end(),
-                [&outFile](std::pair<float, float> &i) {
-                  outFile << i.first << "\t" << i.second << "\n";
-                });
+  std::for_each(
+      output.begin(), output.end(), [&outFile](std::array<float, 4> &a) {
+        outFile << a[0] << "\t" << a[1] << "\t" << a[2] << "\t" << a[3] << "\n";
+      });
 
   outFile.close(); // Close the file
 }

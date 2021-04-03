@@ -1,10 +1,10 @@
 #ifndef IMAGEPROCESSING_H
 #define IMAGEPROCESSING_H
 
-#include "Interpolation.h"
-#include "Parser.h"
-#include "QueueManager.h"
+// #include "Interpolation.h"
+// #include "Parser.h"
 
+#include <deque>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -39,7 +39,9 @@ class ImageProcessing {
 public:
   ImageProcessing() {}
   ~ImageProcessing() {}
-  ImageProcessing(const std::string &imgName, const float &force);
+  ImageProcessing(const std::string &imgName, const float &force,
+                  std::shared_ptr<QueueManager<bool>> queue,
+                  std::shared_ptr<std::mutex> mutex);
 
   ImageProcessing(const ImageProcessing &source); // copy ctr
   ImageProcessing &
@@ -52,17 +54,16 @@ public:
   Mat GetImage();
   Mat GetBinaryImage();
   std::string GetImageName();
-  float *GetMinimumPixelDiameterAndForce(bool show, bool save);
 
+  // Methods
   void ShowImage(Mat &src);
   void MorphologyOperations(int operationCode = 2);
   void GlobalThresholding();
   void ContourDetection();
-  template <typename T>
-  std::vector<T> LinearInterpolation(const std::vector<T> &vec, std::size_t k);
   void ComputeMinimumDiameter();
   void ComputeMinimumEdges();
-  void DrawMinimumDiameter(bool &show, bool &save);
+  void DrawResults();
+  void WaitForScreen();
 
   // template <typename T> T MatToVector(Mat mat);
   // template <typename T> Mat_<T> VectorToMat(std::vector<std::vector<T>>
@@ -70,36 +71,42 @@ public:
   uchar MatToVector(Mat mat);
   Mat_<uchar> VectorToMat(std::vector<std::vector<uchar>> &inVec);
 
+  // Main method
+  float *Process(const bool show, const bool save);
+
   std::string TypeToStr(int &type);
+
+  // static QueueManager<bool> _queue;
+  std::shared_ptr<QueueManager<bool>> _queue;
 
 protected:
   std::shared_ptr<Mat> _img;
   Mat _binaryImg;
 
 private:
-  Point _Lmin;
-  Point _Rmin;
+  Point2d _Lmin;
+  Point2d _Rmin;
+
   std::vector<Point> _Lpoints;
   std::vector<Point> _Rpoints;
-  std::vector<int> _Lxpoints;
-  std::vector<int> _Rxpoints;
+  std::vector<double> _Lxpoints;
+  std::vector<double> _Lypoints;
+  std::vector<double> _Rxpoints;
+  std::vector<double> _Rypoints;
   std::vector<int> _distances;
 
   std::string _imgName;
 
   int _min_distance;
-
+  bool _screen_busy;
   float _force;
-  float diameter_force[2];
+  float _LCurvatureRadius;
+  float _RCurvatureRadius;
+  float diameter_force_curvatureRadius[4];
 
   ThresholdType _threshType;
 
-  QueueManager<bool> _queue;
-
-  bool _user_closed_window = false;
-
-  std::mutex _mtx;
-  std::condition_variable _cond;
+  std::shared_ptr<std::mutex> _mtx;
 };
 
 #endif
