@@ -179,7 +179,7 @@ void ImageProcessing::GlobalThresholding() {
   Mat *tmpImg = new Mat;
   uchar thresh = threshold(*_img, *tmpImg, 0, 255, THRESH_OTSU);
   delete tmpImg;
-  std::lock_guard<std::mutex> lck(*_mtx);
+  // std::lock_guard<std::mutex> lck(*_mtx);
   std::cout << "-- Computed threshold = " << (int)thresh << std::endl;
   // lck.unlock();
 
@@ -229,7 +229,7 @@ void ImageProcessing::ContourDetection() {
 void ImageProcessing::ComputeMinimumDiameter() {
   // Calculate minimum diameter:
   _min_distance = *std::min_element(_distances.begin(), _distances.end());
-  std::lock_guard<std::mutex> lck(*_mtx); // Lock the terminal for printing
+  // std::lock_guard<std::mutex> lck(*_mtx); // Lock the terminal for printing
   std::cout << "-- Minimum distance in pixels: " << _min_distance << '\n'
             << std::endl;
 }
@@ -309,9 +309,11 @@ void ImageProcessing::WaitForScreen() {
 
 float *ImageProcessing::Process(const bool show, const bool save) {
   MorphologyOperations();
+  std::unique_lock<std::mutex> lck(*_mtx); // to lock the screen for cout-ing
   GlobalThresholding();
   ContourDetection();
   ComputeMinimumDiameter();
+  lck.unlock();
   ComputeMinimumEdges();
   DrawResults();
 
@@ -328,10 +330,11 @@ float *ImageProcessing::Process(const bool show, const bool save) {
   _queue->send(std::move(_screen_free));
 
   if (save) {
-    std::unique_lock<std::mutex> lck(*_mtx); // Lock the terminal for printing
+    // std::unique_lock<std::mutex> lck(*_mtx); // Lock the terminal for
+    // printing
     const std::string out = "ET/" + _imgName + ".png";
     imwrite(out, *_img); // Save the frame into a file
-    lck.unlock();
+    // lck.unlock();
   }
 
   diameter_force_curvatureRadius[0] = (float)_min_distance;

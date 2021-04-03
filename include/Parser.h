@@ -1,6 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include <array>
 #include <string>
 #include <vector>
 
