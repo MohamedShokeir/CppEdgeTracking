@@ -4,7 +4,7 @@ EdgeTracking (ET) is an image analysis code that detects and calculates the mini
 
 <!-- ![GitHub Logo](/logo/549n07.gif)
 ![](./logo/549n07.gif) -->
-<img src="./logo/549n07.gif"/>
+<img src="./logo/549n07.gif"/> <img src="./logo/549myd.gif"/>
 
 ## Dependencies for Running Locally
 * cmake >= 2.8
