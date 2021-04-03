@@ -1,0 +1,9 @@
+Name J47_NT10_E258
+Diameter 4.0
+Camera_directory camera
+Force 3
+Image 1
+Delimiter ,
+Show true
+Save true
+Pixel_mm_ratio 0.00444
