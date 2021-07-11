@@ -4,6 +4,6 @@ Camera_directory camera
 Force 3
 Image 1
 Delimiter ,
-Show ttrue
+Show true
 Save true
 Pixel_mm_ratio 0.00444
